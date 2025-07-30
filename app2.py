@@ -14,37 +14,29 @@ st.markdown("""
     <style>
         html, body, [class*="css"] {
             font-family: 'Segoe UI', sans-serif;
+            color: var(--text-color);
+            background-color: var(--background-color);
         }
         .main {
-            background-color: #f4f6f9;
+            background-color: transparent;
         }
         .block-container {
             padding-top: 2rem;
             padding-bottom: 2rem;
         }
         h1, h2, h3, h4 {
-            color: #1b4332;
+            color: var(--text-color);
         }
-        .stButton>button {
-            background-color: #1b4332;
-            color: white;
-            border-radius: 8px;
-            padding: 0.5em 1.2em;
-            border: none;
-            font-weight: bold;
+        .stRadio > div {
+            background-color: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 12px;
         }
         .stFileUploader, .stRadio, .stSelectbox {
-            background-color: #ffffff;
+            background-color: rgba(255, 255, 255, 0.05);
             padding: 1em;
-            border-radius: 10px;
-        }
-        .stMarkdown code {
-            background-color: #d8f3dc;
-            color: #1b4332;
-            font-weight: bold;
-        }
-    </style>
-""", unsafe_allow_html=True)
+            border-radius:
+
 
 # ----- App Header -----
 st.markdown("""
