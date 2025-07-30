@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import torch
+import torch.nn as nn
+import torchvision.models as models
 import torchvision.transforms as transforms
 from PIL import Image
 import joblib
@@ -19,34 +21,37 @@ cnn_labels = ["CD", "HYP", "MI", "NORM", "STTC"]
 RESNET_MODEL_URL = "https://drive.google.com/file/d/18O3DGE8Y8x466urKTkrSHvOFxAXfBSZs"
 RESNET_MODEL_PATH = "ekg_resnet18.pth"
 
-# Function to download model from Drive
+# Download ResNet model from Google Drive
 def download_model():
     if not os.path.exists(RESNET_MODEL_PATH):
-        st.info("Downloading ResNet18 model from Google Drive...")
-        with open(RESNET_MODEL_PATH, "wb") as f:
-            response = requests.get(RESNET_MODEL_URL, stream=True)
-            for chunk in response.iter_content(chunk_size=8192):
+        st.info("📥 Downloading ResNet18 model from Google Drive...")
+        r = requests.get(RESNET_MODEL_URL, stream=True)
+        with open(RESNET_MODEL_PATH, 'wb') as f:
+            for chunk in r.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
-        st.success("Model downloaded successfully.")
+        st.success("✅ Model downloaded.")
 
 # Load models
 @st.cache_resource
 def load_models():
-    # Download model if not present
     download_model()
-
     rf_model = joblib.load("ekg_model.pkl")
 
-    # Load full resnet18 model
-    resnet_model = torch.load(RESNET_MODEL_PATH, map_location="cpu")
-    resnet_model.eval()
+    # Define ResNet18 with 5 output classes
+    resnet18 = models.resnet18(pretrained=False)
+    resnet18.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)  # grayscale input
+    resnet18.fc = nn.Linear(resnet18.fc.in_features, 5)
 
-    return rf_model, resnet_model
+    # Load weights (state_dict)
+    resnet18.load_state_dict(torch.load(RESNET_MODEL_PATH, map_location="cpu"))
+    resnet18.eval()
+
+    return rf_model, resnet18
 
 rf_model, resnet18 = load_models()
 
-# Preprocessing function for CSV signal input
+# Preprocess CSV signals
 def preprocess_signals(df):
     cleaned = []
     for _, row in df.iterrows():
@@ -110,7 +115,7 @@ elif mode == "🖼️ ECG Image":
                 transforms.ToTensor(),
                 transforms.Normalize([0.5], [0.5])
             ])
-            input_tensor = transform(image).unsqueeze(0)  # Add batch dimension
+            input_tensor = transform(image).unsqueeze(0)  # Add batch dim
 
             with torch.no_grad():
                 outputs = resnet18(input_tensor)
