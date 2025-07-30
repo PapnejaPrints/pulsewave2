@@ -41,7 +41,7 @@ st.markdown("""
 # ----- App Header -----
 st.markdown("""
     <div style="text-align: center;">
-        <h1>🫀 PulseWave</h1>
+        <h1>PulseWave</h1>
         <h4 style="color:gray;">Multi-EKG Abnormality Detector</h4>
         <p>by <strong>Brahmleen Papneja</strong>, Faculty of Health Sciences, Queen's University</p>
         <hr style="width: 60%; margin: auto;">
