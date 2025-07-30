@@ -18,9 +18,16 @@ class CNN(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.MaxPool2d(2)
         )
+        self._initialize_fc()
+
+    def _initialize_fc(self):
+        with torch.no_grad():
+            sample = torch.zeros(1, 1, 100, 100)
+            out = self.conv(sample)
+            self.flattened_size = out.view(1, -1).shape[1]
         self.fc = torch.nn.Sequential(
             torch.nn.Flatten(),
-            torch.nn.Linear(64 * 25 * 25, 128),
+            torch.nn.Linear(self.flattened_size, 128),
             torch.nn.ReLU(),
             torch.nn.Linear(128, 5)
         )
