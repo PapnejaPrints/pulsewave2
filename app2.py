@@ -5,8 +5,6 @@ import torch.nn as nn
 import torchvision.transforms as transforms
 from PIL import Image
 import joblib
-import os
-import gdown
 
 # Config
 st.set_page_config(page_title="PulseWave", layout="centered")
@@ -14,58 +12,31 @@ st.title("🫀 PulseWave: EKG Abnormality Classifier")
 st.caption("Brahmleen Papneja · Queen's University · Faculty of Health Sciences")
 st.markdown("---")
 
-# Constants
-EXPECTED_LENGTH = 187
-cnn_labels = ["CD", "HYP", "MI", "NORM", "STTC"]
-CNN_MODEL_PATH = "ekg_cnn_state_dict.pth"
-DRIVE_FILE_ID = "18O3DGE8Y8x466urKTkrSHvOFxAXfBSZs"  # Replace with your actual Drive file ID
-
-# CNN model definition (MUST match training time)
-class ECGCNN(nn.Module):
-    def __init__(self, num_classes=5):
-        super(ECGCNN, self).__init__()
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(1, 16, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(16, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2)
-        )
-        self.fc = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(64 * (224 // 8) * (224 // 8), 128),
-            nn.ReLU(),
-            nn.Dropout(0.3),
-            nn.Linear(128, num_classes)
-        )
-
-    def forward(self, x):
-        x = self.conv_layers(x)
-        return self.fc(x)
-
-# Download from Drive if missing
-def ensure_cnn_model_downloaded():
-    if not os.path.exists(CNN_MODEL_PATH):
-        st.warning("Downloading CNN model from Google Drive...")
-        url = f"https://drive.google.com/uc?id={DRIVE_FILE_ID}"
-        gdown.download(url, CNN_MODEL_PATH, quiet=False)
-
 # Load models
 @st.cache_resource
 def load_models():
+    # Random Forest
     rf_model = joblib.load("ekg_model.pkl")
 
-    ensure_cnn_model_downloaded()
-    cnn_model = ECGCNN(num_classes=5)
-    cnn_model.load_state_dict(torch.load(CNN_MODEL_PATH, map_location="cpu"))
-    cnn_model.eval()
+    # ResNet18
+    resnet18 = torch.hub.load('pytorch/vision:v0.10.0', 'resnet18', pretrained=False)
+    resnet18.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)  # Grayscale
+    resnet18.fc = nn.Linear(resnet18.fc.in_features, 5)
+    resnet18.load_state_dict(torch.load("ekg_resnet18.pth", map_location="cpu"))
+    resnet18.eval()
 
-    return rf_model, cnn_model
+    return rf_model, resnet18
 
-rf_model, cnn_model = load_models()
+rf_model, resnet_model = load_models()
+
+# Constants
+EXPECTED_LENGTH = 187
+resnet_labels = ["CD", "HYP", "MI", "NORM", "STTC"]
 
 # Input mode
 mode = st.radio("Select Input Type:", ["📊 CSV EKG Signals", "🖼️ ECG Image"])
 
-# Preprocess signal data to 187
+# Preprocessing
 def preprocess_signals(df):
     cleaned = []
     for _, row in df.iterrows():
@@ -77,7 +48,7 @@ def preprocess_signals(df):
         cleaned.append(row_array)
     return pd.DataFrame(cleaned)
 
-# CSV Signal classification
+# CSV classification
 if mode == "📊 CSV EKG Signals":
     uploaded_file = st.file_uploader("Upload CSV file (each row = 1 EKG signal)", type="csv")
     if uploaded_file:
@@ -116,7 +87,7 @@ if mode == "📊 CSV EKG Signals":
         except Exception as e:
             st.error(f"⚠️ Error: {e}")
 
-# Image-based CNN classification
+# Image classification
 elif mode == "🖼️ ECG Image":
     uploaded_img = st.file_uploader("Upload grayscale ECG image", type=["png", "jpg", "jpeg"])
     if uploaded_img:
@@ -130,15 +101,15 @@ elif mode == "🖼️ ECG Image":
             input_tensor = transform(image).unsqueeze(0)
 
             with torch.no_grad():
-                outputs = cnn_model(input_tensor)
+                outputs = resnet_model(input_tensor)
                 probs = torch.softmax(outputs, dim=1)
                 pred_class = torch.argmax(probs, dim=1).item()
 
             st.image(image, caption="Uploaded ECG", use_column_width=True)
-            st.success(f"🧠 CNN Predicted Class: `{cnn_labels[pred_class]}`")
+            st.success(f"🧠 ResNet18 Prediction: `{resnet_labels[pred_class]}`")
 
             st.markdown("### 🔬 Class Probabilities")
-            st.json({cnn_labels[i]: f"{probs[0][i]*100:.2f}%" for i in range(len(cnn_labels))})
+            st.json({resnet_labels[i]: f"{probs[0][i]*100:.2f}%" for i in range(len(resnet_labels))})
 
         except Exception as e:
-            st.error(f"Image classification error: {e}")
+            st.error(f"⚠️ Image classification error: {e}")
